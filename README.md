@@ -8,7 +8,7 @@ python-scripts
 ######Example Usage:######
 List all the certificates in the p7b.
 ```
-[user@system PKCS7]$ p7b2crt.py -l -f InstallRoot_PKCS7_v3.16.1A.pem-signed.p7b                     
+[user@system PKCS7]$ p7b2crt.py -l -f InstallRoot_PKCS7_v3.16.1A.pem-signed.p7b
 Certificate subject = C=US, O=U.S. Government, OU=DoD, OU=PKI, CN=DOD CA-19
 Certificate subject = C=US, O=U.S. Government, OU=DoD, OU=PKI, CN=DOD CA-20
 Certificate subject = C=US, O=U.S. Government, OU=DoD, OU=PKI, CN=DOD CA-21
@@ -44,7 +44,7 @@ Certificate subject = C=US, O=U.S. Government, OU=DoD, OU=PKI, CN=DoD Root CA 2
 
 List all the certificates in the p7b that do not have 'email' in the subject CN.
 ```
-[user@system PKCS7]$ p7b2crt.py p7b2crt -l -x email -f InstallRoot_PKCS7_v3.16.1A.pem-signed.p7b            
+[user@system PKCS7]$ p7b2crt.py p7b2crt -l -x email -f InstallRoot_PKCS7_v3.16.1A.pem-signed.p7b
 Certificate subject = C=US, O=U.S. Government, OU=DoD, OU=PKI, CN=DOD CA-19
 Certificate subject = C=US, O=U.S. Government, OU=DoD, OU=PKI, CN=DOD CA-20
 Certificate subject = C=US, O=U.S. Government, OU=DoD, OU=PKI, CN=DOD CA-21
@@ -66,7 +66,7 @@ Certificate subject = C=US, O=U.S. Government, OU=DoD, OU=PKI, CN=DoD Root CA 2
 
 Save all the certificates in the p7b that do not have 'email' in the subject CN into directory 'certs'.
 ```
-[user@system PKCS7]$ p7b2crt.py -x email -s -d certs -f InstallRoot_PKCS7_v3.16.1A.pem-signed.p7b            
+[user@system PKCS7]$ p7b2crt.py -x email -s -d certs -f InstallRoot_PKCS7_v3.16.1A.pem-signed.p7b
 (03:19:06 PM)  :INFO     :saveCert     :Writing file: /tmp/PKCS7/certs/DOD-CA-19.crt
 (03:19:06 PM)  :INFO     :saveCert     :Writing file: /tmp/PKCS7/certs/DOD-CA-20.crt
 (03:19:06 PM)  :INFO     :saveCert     :Writing file: /tmp/PKCS7/certs/DOD-CA-21.crt
