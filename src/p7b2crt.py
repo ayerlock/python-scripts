@@ -1,36 +1,34 @@
 #!/usr/bin/python
 # coding: utf-8
 ###--- Module Imports -----------------------------------------------------------------------------------------------------------
-import	codecs, os, re, requests, signal, shutil, sys, time, traceback
+import	os, re, sys
 import	logging, logging.handlers
-import	OpenSSL, base64
-from	collections				import	OrderedDict
-from	random					import	choice, random
-from	M2Crypto				import	SMIME, X509, BIO
-from	Crypto.Util				import	asn1
-from	OpenSSL.crypto			import	TYPE_RSA, FILETYPE_PEM, PKCS7Type
-from	OpenSSL.test.util		import	TestCase, bytes, b
-###------------------------------------------------------------------------------------------------------------------------------
-sys.setrecursionlimit(5000)
+import	subprocess
 ###------------------------------------------------------------------------------------------------------------------------------
 def argparser():
 	import argparse
 	global ProgArgs
 	
 	ap = argparse.ArgumentParser( description = 'A web image grabber.', prog = os.path.basename(re.sub(".py", "", sys.argv[0])) )
-	ap.add_argument( '-f',	'--file',		action = 'store',		dest = "file",		metavar = "file" )
+	ap.add_argument( '-f',	'--file',		action = 'store',		dest = "file",		metavar = "<input file>" )
 	gap = ap.add_argument_group( 'standard functionality' )
 	gap.add_argument(		'--dryrun',		action = 'store_true' )
-	gap.add_argument( 		'--version',	action = 'version',		version = '%(prog)s 0.1' )
-	gap.add_argument( 		'--list',		action = 'store_true',	default = False )
 	gap.add_argument(		'--program',	action = 'store',		dest = "prog",		metavar = "prog",		default = os.path.basename(re.sub(".py", "", sys.argv[0])))
-	gap = ap.add_argument_group( 'logging' )
-	gap.add_argument( 		'--loglevel',	action = 'store',		dest = "loglevel",	metavar = "logging level",	default = 'info',	choices = ['crit', 'error', 'warn', 'notice', 'info', 'verbose', 'debug', 'insane'] )
-	gap.add_argument(		'--logfile',	action = 'store',		dest = "logfile",	metavar = "logfile" )
-	gap.add_argument( '-v',	'--verbose',	action = 'count',		default = 0 )
+	gap.add_argument( 		'--version',	action = 'version',		version = '%(prog)s 0.1' )
 	gap = ap.add_argument_group( 'output options' )
 	gap.add_argument(		'--debug',		action = 'store_true' )
-	
+	gap.add_argument( 		'--loglevel',	action = 'store',		dest = "loglevel",	metavar = "<log level>",	default = 'info',	choices = ['crit', 'error', 'warn', 'notice', 'info', 'verbose', 'debug', 'insane'] )
+	gap.add_argument(		'--logfile',	action = 'store',		dest = "logfile",	metavar = "<logfile>" )
+	gap.add_argument( '-l',	'--list',		action = 'store_true',	default = False )
+	gap.add_argument( '-p',	'--print',		action = 'store_true',	default = False,	dest = "printcert" )
+	gap.add_argument( '-v',	'--verbose',	action = 'count',		default = 0 )
+	gap = ap.add_argument_group( 'save options' )
+	gap.add_argument( '-d',	'--directory',	action = 'store',		dest = "directory",	metavar = "<target directory>" )
+	gap.add_argument( '-s',	'--save',		action = 'store_true',	default = False )
+	gap = ap.add_argument_group( 'search options' )
+	gap.add_argument( 		'--case-sensitive',	action = 'store_false', dest = "case" )
+	gap.add_argument( '-x',	'--exclude',	action = 'store',		dest = "exclude",	metavar = "<exclude pattern>" )
+
 	ProgArgs										= ap.parse_args()
 	initLog( ProgArgs.loglevel )
 	Logger											= logging.getLogger( __name__ )
@@ -67,106 +65,10 @@ def initLog( LLevel ):
 	LogHandler.setFormatter( logging.Formatter( LogFormat, datefmt='%I:%M:%S %p' ) )
 	logger.addHandler( LogHandler )
 ###------------------------------------------------------------------------------------------------------------------------------
-class PKCS7Tests(TestCase):
-	"""
-	Tests for L{PKCS7Type}.
-	"""
-	def test_type(self):
-		# L{PKCS7Type} is a type object.
-		self.assertTrue(isinstance(PKCS7Type, type))
-		self.assertEqual(PKCS7Type.__name__, 'PKCS7')
-
-		# XXX This doesn't currently work.
-		# self.assertIdentical(PKCS7, PKCS7Type)
-
-
-		# XXX Opposite results for all these following methods
-
-	def test_type_is_signed_wrong_args(self):
-		"""
-		L{PKCS7Type.type_is_signed} raises L{TypeError} if called with any arguments.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertRaises(TypeError, pkcs7.type_is_signed, None)
-
-
-	def test_type_is_signed(self):
-		"""
-		L{PKCS7Type.type_is_signed} returns C{True} if the PKCS7 object is of the type I{signed}.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertTrue(pkcs7.type_is_signed())
-
-	def test_type_is_enveloped_wrong_args(self):
-		"""
-		L{PKCS7Type.type_is_enveloped} raises L{TypeError} if called with any arguments.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertRaises(TypeError, pkcs7.type_is_enveloped, None)
-
-
-	def test_type_is_enveloped(self):
-		"""
-		L{PKCS7Type.type_is_enveloped} returns C{False} if the PKCS7 object is not of the type I{enveloped}.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertFalse(pkcs7.type_is_enveloped())
-
-
-	def test_type_is_signedAndEnveloped_wrong_args(self):
-		"""
-		L{PKCS7Type.type_is_signedAndEnveloped} raises L{TypeError} if called with any arguments.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertRaises(TypeError, pkcs7.type_is_signedAndEnveloped, None)
-
-
-	def test_type_is_signedAndEnveloped(self):
-		"""
-		L{PKCS7Type.type_is_signedAndEnveloped} returns C{False} if the PKCS7 object is not of the type I{signed and enveloped}.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertFalse(pkcs7.type_is_signedAndEnveloped())
-
-
-	def test_type_is_data(self):
-		"""
-		L{PKCS7Type.type_is_data} returns C{False} if the PKCS7 object is not of the type data.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertFalse(pkcs7.type_is_data())
-
-
-	def test_type_is_data_wrong_args(self):
-		"""
-		L{PKCS7Type.type_is_data} raises L{TypeError} if called with any arguments.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertRaises(TypeError, pkcs7.type_is_data, None)
-
-
-	def test_get_type_name_wrong_args(self):
-		"""
-		L{PKCS7Type.get_type_name} raises L{TypeError} if called with any arguments.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertRaises(TypeError, pkcs7.get_type_name, None)
-
-
-	def test_get_type_name(self):
-		"""
-		L{PKCS7Type.get_type_name} returns a C{str} giving the type name.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertEquals(pkcs7.get_type_name(), b('pkcs7-signedData'))
-
-
-	def test_attribute(self):
-		"""
-		If an attribute other than one of the methods tested here is accessed on an instance of L{PKCS7Type}, L{AttributeError} is raised.
-		"""
-		pkcs7 = load_pkcs7_data(FILETYPE_PEM, pkcs7Data)
-		self.assertRaises(AttributeError, getattr, pkcs7, "foo")
+def checkdir( directory ):
+	if not os.path.isdir( ProgArgs.directory ):
+		if ( not ProgArgs.dryrun ):
+			os.mkdir( ProgArgs.directory )
 ###------------------------------------------------------------------------------------------------------------------------------
 def checkfile( file ):
 	isfile											= False
@@ -174,56 +76,132 @@ def checkfile( file ):
 		isfile										= True
 	return isfile
 ###------------------------------------------------------------------------------------------------------------------------------
-def readp7b( file ):
-	data											= ''
-	with open( file ) as r_file:
-		copy = False
-		for line in r_file:
-			if "-----BEGIN PKCS7-----" in line.strip():
-				copy								= True
-				data								= ''.join( [ data, line ] )
-			elif "-----END PKCS7-----" in line.strip():
-				copy								= False
-				data								= ''.join( [ data, line ] )
-			elif copy:
-				data								= ''.join( [ data, line ] )
-		print( data )
-		pkcs7										= OpenSSL.crypto.load_pkcs7_data( FILETYPE_PEM, data )
-		print(pkcs7)
-		print(pkcs7.get_type_name() )
+def p7bImport( file ):
+	# Import a p7b file into a raw glob of certificate data and return the data
+	Command											= ( "openssl pkcs7 -print_certs -in %s" % ( file ) )
+	Pipe											= subprocess.Popen( Command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True )
+	RawData, StdErr									= Pipe.communicate()
+	SplitData										= RawData.split( "\n" )
+	return SplitData
 ###------------------------------------------------------------------------------------------------------------------------------
-def other():
-	raw_sig = """base64 PKCS7 envelop"""
-	msg = "challenge message to verify"
-
-	sm_obj = SMIME.SMIME()
-	x509 = X509.load_cert('ISSUER.crt') # public key cert used by the remote client when signing the message
-	sk = X509.X509_Stack()
-	sk.push( x509 )
-	sm_obj.set_x509_stack(sk)
-
-	st = X509.X509_Store()
-	st.load_info( 'ROOT.crt' ) # Public cert for the CA which signed the above certificate
-	sm_obj.set_x509_store( st )
-
-	# re-wrap signature so that it fits base64 standards
-	cooked_sig = '\n'.join( raw_sig[pos:pos+76] for pos in xrange( 0, len(raw_sig), 76 ) )
-
-	# now, wrap the signature in a PKCS7 block
-	sig = """
-	-----BEGIN PKCS7-----
-	%s
-	-----END PKCS7-----
-	""" % cooked_sig
-
-	# print sig
-
-	# and load it into an SMIME p7 object through the BIO I/O buffer:
-	buf = BIO.MemoryBuffer( sig )
-	p7 = SMIME.load_pkcs7_bio( buf )
-
-	signers = p7.get0_signers( sk )
-	certificat = signers[0]
+def handleCerts( CertList ):
+	# Certificate List handler responsible for performing command line actions (list, print, save, etc.)
+	Logger											= logging.getLogger( __name__ )
+	
+	for certificate in iter( CertList ):
+		for part in iter( certificate ):
+			if "subject=" in part:
+				subject									= re.sub( '/', ', ', part )
+				subject									= re.sub( '=, ', ' = ', subject )
+			elif "issuer=" in part: 
+				issuer									= re.sub( '/', ', ', part )
+				issuer									= re.sub( '=, ', ' = ', issuer )
+			else:
+				data									= part
+			
+		if ProgArgs.exclude:
+			if ProgArgs.case:
+				Match									= re.search( "%s" % ProgArgs.exclude, subject, flags=re.IGNORECASE )	
+			else:
+				Match									= re.search( "%s" % ProgArgs.exclude, subject )	
+			if not Match:
+				if ProgArgs.list:
+					print( "Certificate %s" % ( subject ) )
+				if ProgArgs.printcert:
+					printCert( certificate )
+				if ProgArgs.save:
+					saveCert( certificate )
+		else:
+			if ProgArgs.list:
+				print( "Certificate %s" % ( subject ) )
+			if ProgArgs.printcert:
+				printCert( certificate )
+			if ProgArgs.save:
+				saveCert( certificate )
+###------------------------------------------------------------------------------------------------------------------------------
+def saveCert( certificate ):
+	# Save the certificate out to a file.
+	Logger											= logging.getLogger( __name__ )
+	
+	for part in iter( certificate ):
+		if "subject=" in part:
+			subject									= re.sub( '^(.*)=', '', part )
+		elif "issuer=" in part: 
+			issuer									= re.sub( '^(.*)=', '', part )
+		else:
+			data									= part
+			
+	file											= re.sub( ' ', '-', subject )
+	file											= ''.join( [ file, '.crt' ] )
+	
+	if ProgArgs.directory:
+		filepath									= os.path.join( ProgArgs.directory, file )
+	else:
+		filepath									= os.path.join( os.getcwd(), file )
+		
+	if not ProgArgs.dryrun:
+		Logger.info( "Writing file: %s" % ( filepath ) )
+		try:
+			with open( filepath, 'wb' ) as File:
+				File.write( data )
+		except:
+			WroteFile						= False
+		else:
+			File.close()
+			WroteFile						= True
+	else:
+		Logger.info( "Writing file: %s" % ( filepath ) )
+###------------------------------------------------------------------------------------------------------------------------------
+def printCert( certificate ):
+	# Print just the certificate data
+	Logger											= logging.getLogger( __name__ )
+	
+	for part in iter( certificate ):
+		if "subject=" in part:
+			subject									= re.sub( '/', ', ', part )
+			subject									= re.sub( '=, ', ' = ', subject )
+		elif "issuer=" in part: 
+			issuer									= re.sub( '/', ', ', part )
+			issuer									= re.sub( '=, ', ' = ', issuer )
+		else:
+			data									= part
+	print( data )
+###------------------------------------------------------------------------------------------------------------------------------
+def splitCerts( certglob ):
+	# Split the raw certificate data into individual certificates and return a list of certificates
+	Logger											= logging.getLogger( __name__ )
+	
+	CertList										= []
+	insideCert										= False
+	
+	certdata											= ''
+	for line in iter( certglob ):
+		if "subject=" in line.strip():
+			insideCert								= False
+			certsubject								= line
+			if ProgArgs.verbose > 1:
+				Logger.debug( "Certificate Subject: %s" % ( certsubject ) )
+		elif "issuer=" in line.strip():
+			insideCert								= False
+			certissuer								= line
+			if ProgArgs.verbose > 1:
+				Logger.debug( "Certificate Issuer: %s" % ( certsubject ) )
+		elif "-----BEGIN CERTIFICATE-----" in line.strip():
+			insideCert								= True
+			line									= ''.join( [ line, '\n' ] )
+			certdata								= ''.join( [ certdata, line ] )
+		elif "-----END CERTIFICATE-----" in line.strip():
+			insideCert								= False
+			line									= ''.join( [ line, '\n' ] )
+			certdata								= ''.join( [ certdata, line ] )
+			certificate								= [ certsubject, certissuer, certdata ]
+			CertList.append( certificate )
+			certdata								= ''
+		elif insideCert:
+			line									= ''.join( [ line, '\n' ] )
+			certdata								= ''.join( [ certdata, line ] )
+		
+	return CertList
 ###------------------------------------------------------------------------------------------------------------------------------
 def main():
 	Logger											= logging.getLogger( __name__ )
@@ -233,10 +211,15 @@ def main():
 		logger.error("Error: Problem parsing arguments.")
 		sys.exit(1)
 		
+	if ProgArgs.directory:
+		ProgArgs.directory							= os.path.abspath( ProgArgs.directory )
+		checkdir( ProgArgs.directory )
+		
 	if checkfile( ProgArgs.file ):
-		p7data										= readp7b( ProgArgs.file )
+		CertData									= p7bImport( ProgArgs.file )
 	
-	Logger.info( p7data )
+	CertList										= splitCerts( CertData )
+	handleCerts( CertList )
 	
 	return success
 ###------------------------------------------------------------------------------------------------------------------------------
