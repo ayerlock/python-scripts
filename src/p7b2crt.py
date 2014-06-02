@@ -40,16 +40,17 @@ def argparser():
 	return True
 ###------------------------------------------------------------------------------------------------------------------------------
 def initLog( LLevel ):
-	logger										= logging.getLogger( __name__ )
+	Logger											= logging.getLogger( __name__ )
+	
 	LogLevels = {'crit':logging.CRITICAL,
 				'error':logging.ERROR,
 				'warn':logging.WARNING,
 				'info':logging.INFO,
 				'debug':logging.DEBUG }
 	LogLevel										= LogLevels.get( LLevel, logging.NOTSET )
-	logger.setLevel( LogLevel )
+	Logger.setLevel( LogLevel )
 	LogFormat										= '(%(asctime)-11s)  :%(levelname)-9s:%(funcName)-13s:%(message)s'
-	if ( len( logger.handlers ) == 0 ):
+	if ( len( Logger.handlers ) == 0 ):
 		try:
 			Colorize								= __import__( 'logutils.colorize', fromlist=['colorize'] )
 			LogHandler								= Colorize.ColorizingStreamHandler()
@@ -63,25 +64,37 @@ def initLog( LLevel ):
 	else:
 		LogHandler	= logging.StreamHandler()
 	LogHandler.setFormatter( logging.Formatter( LogFormat, datefmt='%I:%M:%S %p' ) )
-	logger.addHandler( LogHandler )
+	
+	Logger.addHandler( LogHandler )
 ###------------------------------------------------------------------------------------------------------------------------------
-def checkdir( directory ):
-	if not os.path.isdir( ProgArgs.directory ):
+def checkdir( Directory ):
+	if not os.path.isdir( os.path.abspath( Directory ) ):
 		if ( not ProgArgs.dryrun ):
-			os.mkdir( ProgArgs.directory )
+			try:
+				os.mkdir( os.path.abspath( Directory ) )
+			except:
+				Success								= False
+			else:
+				Success								= True
+	return Success
 ###------------------------------------------------------------------------------------------------------------------------------
-def checkfile( file ):
-	isfile											= False
-	if os.path.isfile( file ):
-		isfile										= True
-	return isfile
+def checkfile( InputFile ):
+	Success											= False
+	if os.path.isfile( InputFile ):
+		Success										= True
+	return Success
 ###------------------------------------------------------------------------------------------------------------------------------
-def p7bImport( file ):
+def p7bImport( InputFile ):
+	Logger											= logging.getLogger( __name__ )
+	
 	# Import a p7b file into a raw glob of certificate data and return the data
-	Command											= ( "openssl pkcs7 -print_certs -in %s" % ( file ) )
+	Command											= ( "openssl pkcs7 -print_certs -in %s" % ( InputFile ) )
+	if ProgArgs.verbose >= 3:
+		Logger.debug( "Loading data from pkcs7 file:\t%s" % ( InputFile ) )
 	Pipe											= subprocess.Popen( Command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True )
 	RawData, StdErr									= Pipe.communicate()
 	SplitData										= RawData.split( "\n" )
+	
 	return SplitData
 ###------------------------------------------------------------------------------------------------------------------------------
 def handleCerts( CertList ):
@@ -91,19 +104,25 @@ def handleCerts( CertList ):
 	for certificate in iter( CertList ):
 		for part in iter( certificate ):
 			if "subject=" in part:
-				subject									= re.sub( '/', ', ', part )
-				subject									= re.sub( '=, ', ' = ', subject )
+				subject								= re.sub( '/', ', ', part )
+				subject								= re.sub( '=, ', ' = ', subject )
+				if ProgArgs.verbose >= 3:
+					Logger.debug( "Certificate Subject:\t%s" % ( subject ) )
 			elif "issuer=" in part: 
-				issuer									= re.sub( '/', ', ', part )
-				issuer									= re.sub( '=, ', ' = ', issuer )
+				issuer								= re.sub( '/', ', ', part )
+				issuer								= re.sub( '=, ', ' = ', issuer )
+				if ProgArgs.verbose >= 3:
+					Logger.debug( "  Certificate Issuer:\t%s" % ( issuer ) )
 			else:
-				data									= part
+				data								= part
+				if ProgArgs.verbose >= 4:
+					Logger.debug( "  Certificate Data:\t%s" % ( data ) )
 			
 		if ProgArgs.exclude:
 			if ProgArgs.case:
-				Match									= re.search( "%s" % ProgArgs.exclude, subject, flags=re.IGNORECASE )	
+				Match								= re.search( "%s" % ProgArgs.exclude, subject, flags=re.IGNORECASE )	
 			else:
-				Match									= re.search( "%s" % ProgArgs.exclude, subject )	
+				Match								= re.search( "%s" % ProgArgs.exclude, subject )	
 			if not Match:
 				if ProgArgs.list:
 					print( "Certificate %s" % ( subject ) )
@@ -131,26 +150,28 @@ def saveCert( certificate ):
 		else:
 			data									= part
 			
-	file											= re.sub( ' ', '-', subject )
-	file											= ''.join( [ file, '.crt' ] )
+	outfile											= re.sub( ' ', '-', subject )
+	outfile											= ''.join( [ outfile, '.crt' ] )
 	
 	if ProgArgs.directory:
-		filepath									= os.path.join( ProgArgs.directory, file )
+		filepath									= os.path.join( ProgArgs.directory, outfile )
 	else:
-		filepath									= os.path.join( os.getcwd(), file )
+		filepath									= os.path.join( os.getcwd(), outfile )
 		
 	if not ProgArgs.dryrun:
 		Logger.info( "Writing file: %s" % ( filepath ) )
 		try:
-			with open( filepath, 'wb' ) as File:
-				File.write( data )
+			with open( filepath, 'wb' ) as OutFile:
+				OutFile.write( data )
 		except:
-			WroteFile						= False
+			WroteFile								= False
 		else:
-			File.close()
-			WroteFile						= True
+			OutFile.close()
+			WroteFile								= True
 	else:
 		Logger.info( "Writing file: %s" % ( filepath ) )
+		
+	return WroteFile
 ###------------------------------------------------------------------------------------------------------------------------------
 def printCert( certificate ):
 	# Print just the certificate data
@@ -174,7 +195,7 @@ def splitCerts( certglob ):
 	CertList										= []
 	insideCert										= False
 	
-	certdata											= ''
+	certdata										= ''
 	for line in iter( certglob ):
 		if "subject=" in line.strip():
 			insideCert								= False
@@ -208,7 +229,7 @@ def main():
 	#--- Parse program arguments ----------------------------------------------------------------------------
 	success											= argparser()
 	if ( not success ):
-		logger.error("Error: Problem parsing arguments.")
+		Logger.error("Error: Problem parsing arguments.")
 		sys.exit(1)
 		
 	if ProgArgs.directory:
