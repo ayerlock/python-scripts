@@ -39,6 +39,38 @@ def argparser():
 	
 	return True
 ###------------------------------------------------------------------------------------------------------------------------------
+def optparser():
+	import optparse
+	global ProgArgs
+
+	op = optparse.OptionParser()
+	op.add_option( '-f',	'--file',			dest = 'file',			help = 'Input File',	metavar = "<input file>")
+	op.add_option( 			'--dryrun',			dest = 'dryrun',		action = 'store_true',	default = False )
+	op.add_option(			'--debug',			action = 'store_true' )
+	op.add_option( 			'--loglevel',		action = 'store',		dest = 'loglevel',	metavar = "<log level>",	default = 'info',	choices = ['crit', 'error', 'warn', 'notice', 'info', 'verbose', 'debug', 'insane'] )
+	op.add_option(			'--logfile',		action = 'store',		dest = 'logfile',	metavar = "<logfile>" )
+	op.add_option( '-l',	'--list',			action = 'store_true',	dest = 'list',		default = False )
+	op.add_option( '-p',	'--print',			action = 'store_true',	dest = 'printcert',	default = False )
+	op.add_option( '-v',	'--verbose',		action = 'count',		dest = 'verbose',	default = 0 )
+	op.add_option( '-d',	'--directory',		action = 'store',		dest = 'directory',	metavar = "<target directory>" )
+	op.add_option( '-s',	'--save',			action = 'store_true',	default = False )
+	op.add_option( '-c',	'--case-sensitive',	action = 'store_false', dest = 'case',		default = False )
+	op.add_option( '-x',	'--exclude',		action = 'store',		dest = 'exclude',	metavar = "<exclude pattern>" )
+
+	ProgArgs, args									= op.parse_args()
+	print(ProgArgs)
+	print(args)
+	#sys.exit(1)
+	initLog( ProgArgs.loglevel )
+	Logger											= logging.getLogger( __name__ )
+	
+	if ( ProgArgs.file is None ):
+		Logger.error( "Must use -f argument." )
+		sys.exit(1)
+	Logger											= logging.getLogger( __name__ )
+
+	return True
+###------------------------------------------------------------------------------------------------------------------------------
 def initLog( LLevel ):
 	Logger											= logging.getLogger( __name__ )
 	
@@ -49,18 +81,25 @@ def initLog( LLevel ):
 				'debug':logging.DEBUG }
 	LogLevel										= LogLevels.get( LLevel, logging.NOTSET )
 	Logger.setLevel( LogLevel )
-	LogFormat										= '(%(asctime)-11s)  :%(levelname)-9s:%(funcName)-13s:%(message)s'
+
+	if sys.version_info > (2, 6, 0):
+		LogFormat										= '(%(asctime)-11s)  :%(levelname)-9s:%(funcName)-13s:%(message)s'
+	else:
+		LogFormat										= '(%(asctime)-11s)  :%(levelname)-9s:%(message)s'
+
+	print( sys.version_info )
 	if ( len( Logger.handlers ) == 0 ):
-		try:
-			Colorize								= __import__( 'logutils.colorize', fromlist=['colorize'] )
-			LogHandler								= Colorize.ColorizingStreamHandler()
-			LogHandler.level_map[logging.DEBUG]		= (None, 'blue', False)
-			LogHandler.level_map[logging.INFO]		= (None, 'green', False)
-			LogHandler.level_map[logging.WARNING]	= (None, 'yellow', False)
-			LogHandler.level_map[logging.ERROR]		= (None, 'red', False)
-			LogHandler.level_map[logging.CRITICAL]	= ('red', 'white', False)
-		except ImportError:
-			LogHandler	= logging.StreamHandler()
+		LogHandler	= logging.StreamHandler()
+		#try:
+		#	Colorize								= __import__( 'logutils.colorize', fromlist=['colorize'] )
+		#	LogHandler								= Colorize.ColorizingStreamHandler()
+		#	LogHandler.level_map[logging.DEBUG]		= (None, 'blue', False)
+		#	LogHandler.level_map[logging.INFO]		= (None, 'green', False)
+		#	LogHandler.level_map[logging.WARNING]	= (None, 'yellow', False)
+		#	LogHandler.level_map[logging.ERROR]		= (None, 'red', False)
+		#	LogHandler.level_map[logging.CRITICAL]	= ('red', 'white', False)
+		#except ImportError:
+		#	LogHandler	= logging.StreamHandler()
 	else:
 		LogHandler	= logging.StreamHandler()
 	LogHandler.setFormatter( logging.Formatter( LogFormat, datefmt='%I:%M:%S %p' ) )
@@ -68,6 +107,7 @@ def initLog( LLevel ):
 	Logger.addHandler( LogHandler )
 ###------------------------------------------------------------------------------------------------------------------------------
 def checkdir( Directory ):
+	Success											= False
 	if not os.path.isdir( os.path.abspath( Directory ) ):
 		if ( not ProgArgs.dryrun ):
 			try:
@@ -160,14 +200,26 @@ def saveCert( certificate ):
 		
 	if not ProgArgs.dryrun:
 		Logger.info( "Writing file: %s" % ( filepath ) )
+
+		#if sys.version_info > (2, 6, 0):
+		#	try:
+		#		with open( filepath, 'wb' ) as OutFile:
+		#			OutFile.write( data )
+		#	except:
+		#		WroteFile							= False
+		#	else:
+		#		OutFile.close()
+		#		WroteFile							= True
+		#else:
+		OutFile									= open( filepath, "wb" )
 		try:
-			with open( filepath, 'wb' ) as OutFile:
-				OutFile.write( data )
+			OutFile.write( data )
 		except:
-			WroteFile								= False
+			WroteFile							= False
 		else:
-			OutFile.close()
-			WroteFile								= True
+			WroteFile							= True
+    		OutFile.close()
+
 	else:
 		Logger.info( "Writing file: %s" % ( filepath ) )
 		
@@ -227,7 +279,11 @@ def splitCerts( certglob ):
 def main():
 	Logger											= logging.getLogger( __name__ )
 	#--- Parse program arguments ----------------------------------------------------------------------------
-	success											= argparser()
+	try:
+		success										= argparser()
+	except:
+		success										= optparser()
+		
 	if ( not success ):
 		Logger.error("Error: Problem parsing arguments.")
 		sys.exit(1)
