@@ -2,10 +2,10 @@ from os.path import basename
 import re
 from tempfile import NamedTemporaryFile
 
-try:
-    from subprocess import check_output, CalledProcessError, STDOUT
-except ImportError:  # check_output new in 2.7, so use a backport for <=2.6
-    from subprocess32 import check_output, CalledProcessError, STDOUT
+#try:
+from subprocess import check_output, CalledProcessError, STDOUT
+#except ImportError:  # check_output new in 2.7, so use a backport for <=2.6
+#    from subprocess32 import check_output, CalledProcessError, STDOUT
 
 class OpenSSLError(Exception):
     pass
@@ -67,10 +67,10 @@ def is_revoked(cert, cert_parent):
             'serial': cert.get_serial_number()}
 
     cmd = "openssl ocsp -issuer %(cert_parent)s -CAfile %(cert_parent)s -url %(ocsp_url)s -serial %(serial)s" % data
-    print cmd
+    print(cmd)
     try:
         output = check_output(cmd, shell=True, stderr=STDOUT).lower()
-    except CalledProcessError, e:
+    except CalledProcessError as e:
         msg = u"[OpenSSL] Error while checking ocsp %s: %s. Output: %r" % (
                     cmd, e, e.output)
         raise OpenSSLError(msg)
@@ -95,14 +95,14 @@ def is_revoked_crl(cert, cert_parent_with_crl):
     data = {'cert': tmp_file.name,
             'cert_parent_with_crl': cert_parent_with_crl}
     cmd = "openssl verify -crl_check -CAfile %(cert_parent_with_crl)s %(cert)s" % data
-    print cmd
+    print(cmd)
     try:
         output = check_output(cmd, shell=True, stderr=STDOUT).lower()
-    except CalledProcessError, e:
+    except CalledProcessError as e:
         msg = u"[OpenSSL] Error while checking ocsp %s: %s. Output: %r" % (
                     cmd, e, e.output)
         raise OpenSSLError(msg)
-    print output
+    print(output)
     return '%s: ok' % data['cert'] not in output
 
 
@@ -120,7 +120,7 @@ def get_cert_url_crl(cert):
     infos = [x.strip() for x in info_extension_cert(cert)["crlDistributionPoints"].split('\n')]
     crl_url = None
     for info in infos:
-        print info
+        print(info)
         if re.match(r"^URI:", info):
             crl_url = info.replace("URI:","")
             break
